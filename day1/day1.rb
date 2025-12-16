@@ -2,8 +2,11 @@ content = File.read("aoc1.txt")
 
 dial_pos = 50
 password = 0
-instructions = content.split(/([0-9]+)/).map(&:strip)
 
+# Split to ["L/R", "num"] list, remove whitespace
+instructions = content.split(/([0-9]+)/).map(&:strip) 
+
+# Parse and execute instructions
 instructions.each_slice(2) do |i,v|
   case i
   when "L" then dial_pos = (dial_pos - Integer(v)) % 100
@@ -15,4 +18,5 @@ instructions.each_slice(2) do |i,v|
   puts dial_pos.to_s
   password += 1 if dial_pos == 0
 end
+
 puts password.to_s

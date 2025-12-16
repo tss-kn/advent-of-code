@@ -1,26 +1,32 @@
 defmodule AOCDay1 do
-  def run(contents) do
-    lines = String.split(contents)
+  def run(file_contents) do
+    lines = String.split(file_contents)
     instructions = Enum.map(lines, &parse_instruction/1)
     {password, dial_pos} = do_instructions(instructions, 50, 0)
     IO.puts("The password is #{password}")
   end
 
+  # Parse a dial instruction from the given line
+  @spec parse_instruction(String.t()) :: {String.t(), String.t()}
   def parse_instruction(instruction) do
+    # Capture the letter and the turn amount number (e.g. L25 -> [["L"], ["2", "5"]])
     {letter, digit} =
       instruction
       |> String.graphemes()
       |> Enum.split_while(&(&1 =~ ~r/[A-Z]/))
 
+    # Join them together (e.g. [["L"], ["2", "5"]] -> ["L", "25"])
     {Enum.join(letter), Enum.join(digit)}
   end
 
+  # Do the instructions sequentially
+  @spec do_instructions([{String.t(), String.t()}], integer, integer) :: {integer, integer}
   def do_instructions([], dial_state, password), do: {password, dial_state}
 
   def do_instructions([{instruction, amount} | rest], dial_state, password) do
     {amt, ""} = Integer.parse(amount)
 
-    new_d =
+    new_dial_state =
       case instruction do
         "L" -> rotate_dial(dial_state, -amt)
         "R" -> rotate_dial(dial_state, amt)
@@ -28,13 +34,17 @@ defmodule AOCDay1 do
 
     IO.puts(dial_state)
 
+    # Increment the password accordingly
     if dial_state == 0 do
-      do_instructions(rest, new_d, password + 1)
+      do_instructions(rest, new_dial_state, password + 1)
     else
-      do_instructions(rest, new_d, password)
+      do_instructions(rest, new_dial_state, password)
     end
   end
 
+  # Rotates the dial by the specified amount,
+  # wraps around if x < 0 or x > 100
+  @spec rotate_dial(integer, integer) :: integer
   defp rotate_dial(x, amount) do
     x2 = rem(x + amount, 100)
     if x2 < 0, do: x2 + 100, else: x2
