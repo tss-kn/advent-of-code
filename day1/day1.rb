@@ -7,16 +7,14 @@ password = 0
 instructions = content.split(/([0-9]+)/).map(&:strip) 
 
 # Parse and execute instructions
-instructions.each_slice(2) do |i,v|
-  case i
-  when "L" then dial_pos = (dial_pos - Integer(v)) % 100
-  when "R" then dial_pos = (dial_pos + Integer(v)) % 100
+instructions.each_slice(2) do |dir,v|
+  amount = Integer(v)
+
+  # stolen from medium because I give up
+  amount.times do
+    dial_pos += dir == "R" ? 1 : -1 
+    password += 1 if dial_pos % 100 == 0
   end
-
-  dial_pos += 100 if dial_pos < 0
-
-  puts dial_pos.to_s
-  password += 1 if dial_pos == 0
 end
 
-puts password.to_s
+puts password
