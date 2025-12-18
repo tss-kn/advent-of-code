@@ -15,23 +15,9 @@ global _start
 %endmacro
 
 _start:
-    mov esi, hello
-    call puts
-
-    strchr_prologue hello2, '-'
-
-    call strchr
-    
-    mov dl, bl
-    add dl, '0'
-    mov [VMEM + hello2.len * 2], dl
-
-    call strchr
-
-    mov dl, bl
-    add dl, '0'
-    mov [VMEM + (hello2.len * 2) + 4], dl
-
+    mov al, 'a'
+    mov edi, VMEM
+    mov [edi], al
 halt:
     hlt
     jmp $
@@ -63,12 +49,9 @@ puts:
 
 
 section .data
-; Strings
-hello db "Hello, world!", 0
-hello.len equ $ - hello
-
-hello2 db "Haljm-ark-bc", 0
-hello2.len equ $ - hello2
+input:
+    incbin "input.txt"
+input_end equ $ - input
 
 section .bss
 temp: resb 16
