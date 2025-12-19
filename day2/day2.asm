@@ -7,30 +7,342 @@ global _start
 
 ; set up for sequential strchr calls
 ; strchr_prologue(str, chr)
-%macro strchr_prologue 2
-    mov ecx, %1.len
-    mov edi, %1
-    mov esi, edi ; set to string base pointer
-    mov al, %2
-%endmacro
+; %macro strchr_prologue 2
+;     mov ecx, %1.len
+;     mov edi, %1
+;     mov esi, edi ; set to string base pointer
+;     mov al, %2
+; %endmacro
 
 _start:
-    mov al, 'a'
+    cld
+
+    mov edi, input
+
+
+.clear_min_max:
+    push edi
+
+    mov ecx, 6 ; reset mem to zero
+    mov edi, min
+    xor eax, eax
+    rep stosb
+
+    mov ecx, 6
+    mov edi, max
+    xor eax, eax
+    rep stosb
+
+    pop edi
+
+    ; check if invalid id for n and m
+.push_range_min_max: ; process n-m
+    mov ecx, 64     ; prevent repne from stopping for proper strchr
+    mov al, '-'
+    mov esi, edi    
+    repne scasb     ; nnnnn-
+    ; (increments edi)
+    mov edx, min + 5
+    call push_min_max
+
+    mov al, ','
+    mov esi, edi
+    repne scasb     ; mmmmm,
+
+    mov edx, max + 5
+    call push_min_max
+
+.check_invalid_min:
+    mov esi, min
+    call check_invalid
+
+.check_invalid_max:
+    mov esi, max
+    call check_invalid
+
+.check_invalid_range:
+    mov edi, min
+    mov esi, max
+    mov ecx, 5
+
+    call bcd_inc
+    call check_invalid
+
+    mov eax, [esi]
+    cmp eax, [edi]
+    jne .check_invalid_range
+
+print_result:
+    cld
+
+    mov cl, running_total.len
+    mov esi, running_total
     mov edi, VMEM
-    mov [edi], al
-halt:
-    hlt
+.putc:
+    movsb
+    inc edi
+
+    dec cl
+    jnz .putc
+
     jmp $
 
-strchr:
-    ; call strchr
-    repne scasb
-    mov ebx, edi
-    sub ebx, esi
+
+
+; input
+; esi -> source number (packed BCD)
+check_invalid:
+    call get_num_digits
+
+    cmp cl, 2
+    je .len_is_2
+
+    test cl, 1
+    jz .len_even
+    jnz .len_odd
+
+    jmp .skip_add_to_total
+
+.len_is_2:
+    call bcd_to_numstring
+    cmp ah, al
+    je .add_to_total
+
+.len_even:
+    cld
+    shr cl, 2
+
+    mov edi, esi
+    add edi, ecx
+
+    repe cmpsb
+
+    je .add_to_total
+    jmp .skip_add_to_total
+
+.len_odd:
+    ; mov edi, temp
+    mov ebx, 0
+    dec cl
+
+    mov edi, temp
+
+    rep movsb
+
+    inc edi
+
+    sub esi, ebx
+
+    mov cl, bl
+    inc cl
+
+    mov edx, edi
+
+    rep movsb
+
+    mov al, [edx]
+    and al, 0x0F
+    mov [edx], al
+
+    mov al, [edx-2]
+    and al, 0xF0
+    mov [edx-2], al
+
+    mov esi, edx
+    call bcd_shl
+
+    mov esi, edx
+    mov edi, temp
+
+    mov cl, 6
+    repe cmpsb
+
+    je .add_to_total
+    jmp .skip_add_to_total
+
+.add_to_total:
+    clc
+    mov edi, running_total + running_total.len
+    mov al, [esi]
+    adc [edi], esi
+    daa
+    dec edi
+    jmp .add_to_total+1
+
+.skip_add_to_total:
     ret
 
-; Print a string, esi is the source of the string
-; puts str [esi] -> void
+
+; input
+; esi -> base pointer of SCASB comparison
+; edi -> result pointer of SCASB comparison
+; output
+; buffer -> packed BCD of [edi]-[esi]
+push_min_max:
+    pusha
+    mov ecx, 0
+    mov eax, 0
+    ; flip esi and edi (thank you primagen)
+    xor esi, edi
+    xor edi, esi
+    xor esi, edi
+.extract_number:
+    mov al, [esi-2]
+    sub al, '0'
+    shl al, cl
+    or [edx], al ; move into min or max (as BCD) depending on edx offset
+.skip_zero:
+    add cl, 4
+    dec esi
+
+.decr_numptr:
+    test cl, 7
+    jnz .skip
+    mov cl, 0
+    dec edx
+.skip:
+    mov ebx, esi
+    sub ebx, 2
+    cmp ebx, edi
+    jae .extract_number
+
+.ex_done:
+    popa
+    ret
+
+; input
+; esi -> source buffer (packed BCD)
+; output
+; dl -> number of bcd digits
+; cl -> number of bcd digits / 2
+; esi -> start of highest BCD in number
+get_num_digits:
+    mov ecx, 6
+    mov al, [esi]
+    test al, al
+    jnz .done
+    dec cl
+    jz .done
+    inc esi
+    jmp get_num_digits
+.done:
+    mov al, cl
+    mov dl, 2 
+    div dl      
+    
+    mov dl, cl
+    mov cl, al
+    ret
+
+; esi -> source buffer (packed BCD)
+; edi -> destination buffer (packed BCD)
+; ecx -> number of bytes
+bcd_add:
+    clc                     ; clear carry
+    add esi, ecx            ; point to last byte
+    add edi, ecx
+    dec esi
+    dec edi
+
+.loop:
+    mov al, [edi]           ; load dest byte
+    adc al, [esi]           ; add src + carry
+    daa                     ; adjust AL to valid BCD
+    mov [edi], al           ; store back
+
+    dec esi
+    dec edi
+    loop .loop
+    ret
+
+
+; Increment a packed BCD buffer by 1
+; edi -> buffer end (least significant byte)
+; ecx -> number of bytes
+
+bcd_inc:
+    clc                 ; clear carry
+    add edi, ecx        ; point to end
+    dec edi
+
+.loop:
+    mov al, [edi]       ; load current byte
+    adc al, 0           ; add carry (first iteration = 1)
+    daa                 ; adjust AL to valid BCD
+    mov [edi], al       ; store back
+
+    jc .carry           ; if carry out, cascade left
+    ret
+
+.carry:
+    dec edi
+    loop .loop
+    ret
+
+
+; input
+; esi -> source buffer (packed BCD)
+bcd_shl:
+    mov al, [esi]
+    shl al, 4
+
+    mov bl, [esi + 1]
+    shr bl, 4
+
+    or al, bl
+    mov [esi], al
+    inc esi
+    dec cl
+    jnz bcd_shl
+    ret
+
+; input
+; esi -> start byte to swap
+swap_bytes:
+    pop esi
+    mov al, [esi + 1]
+    mov ah, [esi]
+    mov [esi], ax
+    dec esi
+    cmp esi, edi
+    jne swap_bytes
+
+    ret
+
+
+; input
+; esi -> source of packed BCD
+; output
+; ax -> unpacked BCD
+bcd_to_numstring: 
+    mov eax, 0
+    mov al, [esi]
+    mov ah, [esi]
+
+    and al, 0xF
+    and ah, 0xF0
+
+    shr ah, 4
+
+    add al, '0'
+    add ah, '0'
+    ret
+
+; input
+; ax -> unpacked BCD
+; output
+; ax -> packed BCD
+numstring_to_bcd:
+    sub ah, '0'
+    sub al, '0'
+    shl ah, 4
+    or ah, al
+    ret
+
+
+; Print a string to the screen
+; input
+; esi -> source string
 puts:
     push eax
     mov edi, VMEM
@@ -51,7 +363,13 @@ puts:
 section .data
 input:
     incbin "input.txt"
-input_end equ $ - input
+input.len equ $ - input
+
+test_bcd_num db 0x02, 0x12, 0x56, 0x22, 0x34 ; 222 with pad zero
 
 section .bss
-temp: resb 16
+min: resb 6 ; bcd big endian
+max: resb 6 ; bcd big endian
+running_total: resb 10 ; bcd little endian
+running_total.len equ $ - running_total
+temp: resb 32

@@ -1,3 +1,5 @@
+# TODO: convert from flat binary to flat binary + debug data
+
 AS := nasm
 LD := x86_64-elf-ld
 
@@ -12,6 +14,13 @@ build: clean build_dir
 	x86_64-elf-objcopy -O binary build/obj/day2.elf build/obj/day2.bin
 
 	cat build/obj/init.bin build/obj/day2.bin > build/day2.bin
+
+	echo "\033[0;33m"-------------------------------------------------------
+	@echo Make sure you run these in gdb:
+	@echo \(gdb\) target remote :1234
+	@echo \(gdb\) symbol-file build/obj/day2.elf
+	@echo when you are debugging because this setup is a mess
+	@echo '-------------------------------------------------------'
 
 run: 
 	$(QEMU) build/day2.bin

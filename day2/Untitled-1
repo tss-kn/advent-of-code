@@ -1,0 +1,6 @@
+x/6xb &min
+x/6xb &max
+x/10xb &running_total
+x/32xb &temp
+info register esi edi
+end
