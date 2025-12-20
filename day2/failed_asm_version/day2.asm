@@ -375,7 +375,7 @@ puts:
 
 section .data
 input:
-    incbin "input.txt"
+    ; incbin "input.txt"
 input.len equ $ - input
 
 test_bcd_num db 0x02, 0x12, 0x56, 0x22, 0x34 ; 222 with pad zero
