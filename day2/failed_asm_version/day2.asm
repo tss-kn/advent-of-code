@@ -53,49 +53,30 @@ _start:
     call push_min_max
 
 .check_invalid_min:
-    mov eax, `m\x0Fn\x0F`
-    mov edi, VMEM
-    stosd
-
     mov esi, min
     call check_invalid
 
 .check_invalid_max:
-    mov eax, `m\x0Fx\x0F`
-    mov edi, VMEM
-    stosd
-
     mov esi, max
     call check_invalid
 
 .check_invalid_range:
-    mov eax, `r\x0Fg\x0F`
-    mov edi, VMEM
-    stosd
+    mov edi, min+5
+    call bcd_inc
 
     mov edi, min
     mov esi, max
     mov ecx, 5
 
-    call bcd_inc
     call check_invalid
 
-    mov eax, [esi]
-    cmp eax, [edi]
+    ; mov eax, [esi]
+    ; cmp eax, [edi]
+    mov edi, min
+    mov esi, max
+    repe cmpsb
     jne .check_invalid_range
 
-print_result:
-    cld
-
-    mov cl, running_total.len
-    mov esi, running_total
-    mov edi, VMEM
-.putc:
-    movsb
-    inc edi
-
-    dec cl
-    jnz .putc
 
     jmp $
 
@@ -104,52 +85,30 @@ print_result:
 check_invalid:
     call get_num_digits
 
-.len_is_2:
-    cmp ah, al
-    je .add_to_total
-    jmp .skip_add_to_total
+    push ecx
 
-.even_halves:
+    mov edi, temp
+.store:
+    call bcd_to_numstring
+    xor al, ah
+    xor ah, al
+    xor al, ah
+    stosw
+    inc esi
+    loop .store
+.compare_halves:
+    mov cl, dl
+
+    mov esi, temp
+    cmp [esi], '0'
+    jne .offset
+    inc esi
+.offset:
     mov edi, esi
-    shl cl, 1
-    add edi, ecx
+    add edi, edx
 
     repe cmpsb
-
-    je .add_to_total
-    jmp .skip_add_to_total
-
-.odd_halves:
-    mov al, [esi+ecx]
-    ; shl cl, 1
-    call bcd_to_numstring
-    shl ah, 4
-
-    mov [temp2], al
-
-    mov edi, temp1
-    push ecx
-    rep movsb
-
-    mov edi, temp2+1
-    inc esi
-
-
-
-
-
-    mov bl, 0x0F
-    mov bh, 0xF0
-
-
-
-    xor ebx, 0xFFFF
-
-
-
-
-    je .add_to_total
-    jmp .skip_add_to_total
+    jne .skip_add_to_total
 
 .add_to_total:
     clc
@@ -158,7 +117,7 @@ check_invalid:
     adc [edi], esi
     daa
     dec edi
-    jmp .add_to_total+1
+
 
 .skip_add_to_total:
     ret
@@ -205,25 +164,24 @@ push_min_max:
 ; input
 ; esi -> source buffer (packed BCD)
 ; output
-; cl -> number of bcd digits / 2 (aka number of bytes used)
-; dl -> number of bcd digits
-; esi -> start of highest BCD in number
+; cl -> num of bytes used by number
+; dl -> num of digits in BCD number
+; esi -> start of first available BCD byte
 get_num_digits:
     mov ecx, 6
+    mov edx, 0
+.get_num_bytes:
     mov al, [esi]
     test al, al
     jnz .done
     dec cl
     jz .done
     inc esi
-    jmp get_num_digits
+    jmp .get_num_bytes
 .done:
-    mov al, cl        ; al = bytes used
-    shl al, 1         ; multiply by 2 → digit count
-    mov dl, al        ; dl = digit count
+    mov dl, cl        ; al = bytes used
+    shl dl, 1         ; multiply by 2 → digit count
 
-    shr al, 1         ; divide by 2 → half length
-    mov cl, al        ; cl = half length
     ret
 
 
@@ -311,16 +269,16 @@ bcd_shr:
 
 ; input
 ; esi -> start byte to swap
-swap_bytes:
-    pop esi
-    mov al, [esi + 1]
-    mov ah, [esi]
-    mov [esi], ax
-    dec esi
-    cmp esi, edi
-    jne swap_bytes
+; swap_bytes:
+;     pop esi
+;     mov al, [esi + 1]
+;     mov ah, [esi]
+;     mov [esi], ax
+;     dec esi
+;     cmp esi, edi
+;     jne swap_bytes
 
-    ret
+;     ret
 
 
 ; input
@@ -375,7 +333,7 @@ puts:
 
 section .data
 input:
-    ; incbin "input.txt"
+    incbin "../input.txt"
 input.len equ $ - input
 
 test_bcd_num db 0x02, 0x12, 0x56, 0x22, 0x34 ; 222 with pad zero
@@ -389,5 +347,4 @@ max.len equ $ - max
 
 running_total: resb 10 ; bcd little endian
 running_total.len equ $ - running_total
-temp1: resb 12
-temp2: resb 12
+temp: resb 64
