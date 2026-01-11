@@ -1,0 +1,1 @@
+/Users/myawesomemacboook/Documents/advent-of-code/day6/target/debug/day6: /Users/myawesomemacboook/Documents/advent-of-code/day6/src/column_iter.rs /Users/myawesomemacboook/Documents/advent-of-code/day6/src/main.rs
